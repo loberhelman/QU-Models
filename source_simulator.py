@@ -12,125 +12,214 @@ WHAT ABOUT THE BEAM MODELS?
 import numpy as np
 
 
-class Simulated_Fg_Component:
-
-    def __init__(self, lambda_sqr_array, frac_pol, RM_radm2, delta_rm_2, sigmaRM_radm2, psi0_deg):
-        #Sets the source parameters
-        #FIXME WHAT ARE WE DOING ABOUT RM? RM Center RM 
-
-        self.lambda_sqr_array = lambda_sqr_array
-        self.frac_pol = frac_pol
-        self.RM_radm2 = RM_radm2
-        self.delta_rm_2 = delta_rm_2
-        self.sigmaRM_radm2 = sigmaRM_radm2
-        self.psi0_deg = psi0_deg
-        self.quarr_fg = 0
-
-
-    def set_a_linear_gradient_fg(self):
-        """
-        Linear Gradient
-        Basically where delta RM 
-        Sokoloff et al 1998
-        """
-        
-        quarr = 1.0 * np.exp(-2.0j * self.RM_radm2 * self.lambda_sqr_array  - 2 * (self.delta_rm_2 * self.lambda_sqr_array)**2)
-        self.quarr_fg = quarr
-
-    def set_a_extrenal_dispersion_fg(self):
-        """
-        Sokoloff et al. (1998) Eq B3
-        O'Sullivan et al. (2012) Eq 11
-        """
-
-        quarr = 1.0 * np.exp(-2.0 * self.sigmaRM_radm2**2.0 * self.lambda_sqr_array**2.0)
-        self.quarr_fg = quarr
-
-    def get_quarr(self):
-        return self.quarr_fg
-
-
-
-class Simulated_Src_Component:
-
-    def __init__(self, lambda_sqr_array, frac_pol, RM_radm2, delta_rm_2, sigmaRM_radm2, psi0_deg):
-        #Sets the source parameters
-        #FIXME WHAT ARE WE DOING ABOUT RM? RM Center RM 
-
-        self.lambda_sqr_array = lambda_sqr_array
-        self.frac_pol = frac_pol
-        self.RM_radm2 = RM_radm2
-        self.delta_rm_2 = delta_rm_2
-        self.sigmaRM_radm2 = sigmaRM_radm2
-        self.psi0_deg = psi0_deg
-        self.quarr_src = 0
-
-    def set_a_burn_slab_src(self):
-        """
-        Burn Slab
-        Single Faraday component with differential Faraday rotation
-        Burn (1966) Eq 18; with N >> (H_r/2H_z^0)^2
-        Sokoloff et al. (1998) Eq 3
-        O'Sullivan et al. (2012) Eq 9
-        Ma et al. (2019a) Eq 12
-        """
-
-        quarr = 1.0 * np.exp(-2.0 * self.sigmaRM_radm2**2.0 * self.lambda_sqr_array**2.0)
-        self.quarr_src = quarr
-
-    def set_a_turbulent_slab_src(self):
-        """
-        Turbulent Slab
-        Sokloff et al 1998 eqn 34
-        delta_rm = 0
-        sigRM_radm2 = nonzero
-        """
-        S = (2. * lambda_four_array**2 * sigRM_radm2**2 - 
-             2j * lamSqArr_m2_array * delta_rm)
-        quArr = (pArr * np.exp( 2j * (np.radians(psi0_deg) +
-                                  self.RM_radm2 * lamSqArr_m2_array)) * 
-            (1 - np.exp(-1.*S)) / S)
-       
-        self.quarr_src = quarr
-
-    def set_a_mixed_slab_src(self):
-        """
-        Mixed Slab
-        Sokloff et al 1998 eqn 34
-        """
-        S = (2. * self.lambda_4_array*self.sigRM_radm2**2)
-        quArr = (pArr * np.exp( 2j * (np.radians(self.psi0_deg) +
-                                  RM * self.lamSqArr_m2_array)) * 
-                                  (1 - np.exp(-1.*S)) / S)
-       
-        self.quarr_src = quarr
-    
-    def get_quarr(self):
-
-        return self.quarr_src
-
-
-class Simulated_LoS(Simulated_Src_Component, Simulated_Fg_Component):
+class Simulated_LoS:
     """
     Class provides the frame work to combine operators
 
+
     The theory behind it is that there are emission and propagation operators
-    The emission operators need to be added and the propagation operators can be multiplied\
+    The emission operators need to be added and the propagation operators can be multiplied
     """
-    def __init__():
+
+    #model_list = {'faraday': self.create_a_faraday_simple_LOS}
+               #'create_a_burnslab_unf_fg_LOS',
+               #'create_a_unif_emiss_screen_lin_fg_LOS', 'create_a_burn_slab_lin_fg_LOS', 'create_a_turbulent_slab_ran_fg_LOS']
+
+
+    def __init__(self, RM_screen, RM_src, sigma_RM_2, psi0, lambda_sqr_array, frac_pol_emn, sigma_RM_FG_2, frac_pol_second, psi0_2_deg, RM_screen_2_radm2, SNR, model_name):
+        self.model_list = {'faraday_simple': self._create_a_faraday_simple_LOS,
+                           'unif_screen':self._create_a_unif_emis_screen_LOS,
+                           'burnslab': self._create_a_unifrom_slab_LOS,
+                           'burnslab_unif_fg': self._create_a_burnslab_unf_fg_LOS,
+                           'unif_screen_lin_fg': self._create_a_unif_emiss_screen_lin_fg_LOS,
+                           'burnslab_lin_fg':self._create_a_burn_slab_lin_fg_LOS,
+                           'turbslab_ran_fg':self._create_a_mixed_slab_ran_fg_LOS,
+                           'mixedslab_unif_fg':self._create_a_mixed_slab_unf_fg_LOS,
+                           'two_component':self._create_two_component_LOS}
+        
+
         self.quarr_LoS = 0
+        self.RM_screen_radm2 = RM_screen
+        self.RM_src_radm2 = RM_src
+        self.sigma_RM_2 = sigma_RM_2
+        self.psi0_deg = psi0
+        self.lambda_sqr_array = lambda_sqr_array
+        self.frac_pol = frac_pol_emn
+        self.frac_pol_2_comp = frac_pol_second
+        self.sigma_RM_FG_2 = sigma_RM_FG_2
+        self.psi0_2_deg = psi0_2_deg
+        self.RM_screen_2_radm2 = RM_screen_2_radm2
+        self.SNR = SNR
+        self.model_n = model_name
+    
 
-    def create_emission(self src_model1,src_model2):
-        #essentitally the emission operator
-        self.quarr_LoS = src_model1 + src_model2
+        if model_name not in self.model_list:
+            err = f'model name :{model_name} unknown, choose one of:\n{list(self.model_list.keys())}'
+            raise TypeError(err)
+        
+        self.model = self.model_list[model_name]()
 
 
-    def propagate_emission(self, src_model, fg_model):
-        #propagation operator
-        self.quarr_LoS = src_model * fg_model
+    #But maybe too big and need to have set models
+
+    def _create_a_unif_emis_screen_LOS(self):
+        """
+        Faraday Simple: Uniform Emission Slab and the Uniform Foreground
+        Inputs:
+            -fractional polarization
+            -polarization angle
+            -RM_screen
+        """
+
+        self.quarr_LoS = self.frac_pol * np.exp(2j * np.radians(self.psi0_deg)*self.lambda_sqr_array)
+        self.sigma_RM_2 = 0
+        self.sigma_RM_FG_2 = 0
+        self.RM_src_radm2 = 0
+        self.RM_screen_radm2 = 0
+        self.frac_pol_2_comp = 0
+        self.psi0_2_deg=0
+        self.RM_screen_2_radm2 = 0
+
+
+    def _create_a_unifrom_slab_LOS(self):
+        """
+        Faraday Simple: Uniform Emission Slab and the Uniform Foreground
+        Inputs:
+            -fractional polarization
+            -polarization angle
+            -RM_screen
+        """
+
+        self.quarr_LoS = self.frac_pol * np.exp(2j * (np.radians(self.psi0_deg) + (0.5*self.RM_src_radm2 *self.lambda_sqr_array)) * ((np.sin(self.RM_src_radm2 * self.lambda_sqr_array))/(self.RM_src_radm2 * self.lambda_sqr_array)))
+        self.sigma_RM_2 = 0
+        self.sigma_RM_FG_2 = 0
+        self.RM_screen_radm2 =0
+        self.frac_pol_2_comp=0
+        self.psi0_2_deg=0
+        self.RM_screen_2_radm2=0
+
+    def _create_a_faraday_simple_LOS(self):
+        """
+        Faraday Simple: Uniform Emission Slab and the Uniform Foreground
+        Inputs:
+            -fractional polarization
+            -polarization angle
+            -RM_screen
+        """
+
+        self.quarr_LoS = self.frac_pol * np.exp(2j * (np.radians(self.psi0_deg) + self.RM_screen_radm2 * self.lambda_sqr_array))
+        self.sigma_RM_2 = 0
+        self.sigma_RM_FG_2 = 0
+        self.RM_src_radm2 = 0
+        self.frac_pol_2_comp=0
+        self.psi0_2_deg=0
+        self.RM_screen_2_radm2=0
+
+
+       
+    def _create_a_burnslab_unf_fg_LOS(self):
+        """
+        Part 1 of the Uniform Burn Slab combined with the Uniform Foreground
+        Inputs:
+            -fractional polarization
+            -polarization angle
+            -RM_screen
+            -RM_source
+        """
+        print('creating slab')
+        self.quarr_LoS = self.frac_pol * np.exp(2j * (np.radians(self.psi0_deg) + (0.5*self.RM_src_radm2 + self.RM_screen_radm2)*self.lambda_sqr_array)) * ((np.sin(self.RM_src_radm2 * self.lambda_sqr_array))/(self.RM_src_radm2 * self.lambda_sqr_array)) 
+        self.sigma_RM_2 = 0
+        self.sigma_RM_FG_2 = 0
+        self.frac_pol_2_comp=0
+        self.psi0_2_deg=0
+        self.RM_screen_2_radm2=0
+
+    def _create_a_unif_emiss_screen_lin_fg_LOS(self):
+        """
+        Uniform emission screen with a linear foreground screen convolved with a beam
+        Inputs:
+            -fractional polarization
+            -polarization angle
+            -RM_screen - RM at the center of the beam
+            -sigma_RM_2 = the change in RM across the beam (sigma_b Delta RM/ D)
+        """
+        
+        self.quarr_LoS = self.frac_pol * np.exp(2j * (np.radians(self.psi0_deg) + self.RM_screen_radm2 * self.lambda_sqr_array)) * np.exp(-2 * self.lambda_sqr_array**(2) * self.sigma_RM_2**2.)
+        self.sigma_RM_FG_2 = 0
+        self.RM_src_radm2 = 0
+        self.frac_pol_2_comp=0
+        self.psi0_2_deg=0
+        self.RM_screen_2_radm2=0
+
+    def _create_a_burn_slab_lin_fg_LOS(self):
+        """
+        Uniform emission screen with a linear foreground screen convolved with a beam
+        Inputs:
+            -fractional polarization
+            -polarization angle
+            -RM_screen - RM at the center of the beam
+            -RM_src - RM of the bg source
+            -sigma_RM_2 = the change in RM across the beam (sigma_b Delta RM/ D)
+        """
+
+        #self.quarr_LoS =  ((np.sin(self.RM_src_radm2 * self.lambda_sqr_array))/(self.RM_src_radm2 * self.lambda_sqr_array)) * np.exp(2j * self.lambda_sqr_array * self.RM_screen_radm2 - 2 * self.lambda_sqr_array**(2) * self.sigma_RM_2**2.))
+        self.quarr_LoS = (self.frac_pol * np.exp(2j * (np.radians(self.psi0_deg) + (0.5*self.RM_src_radm2 * self.lambda_sqr_array))) * ((np.sin(self.RM_src_radm2 * self.lambda_sqr_array))/(self.RM_src_radm2 * self.lambda_sqr_array)) * np.exp(2j * self.RM_screen_radm2 * self.lambda_sqr_array - 2 * self.lambda_sqr_array**2.0 * self.sigma_RM_FG_2**2.0))
+        self.sigma_RM_FG_2 = 0
+        self.psi0_2_deg=0
+        self.frac_pol_2_comp=0
+        self.RM_screen_2_radm2=0
+
+    def _create_a_mixed_slab_ran_fg_LOS(self):
+        """
+        Turbulent Slab with a linear RM gradient foreground screen convolved with a beam
+        Inputs:
+            -fractional polarization
+            -polarization angle
+            -RM_screen - RM at the center of the beam
+            -sigma_RM_2 = the change in RM across the beam (sigma_b Delta RM/ D)
+        """
+        
+        para_S = (2. * self.lambda_sqr_array**2 * self.sigma_RM_2**2 -  2j * self.lambda_sqr_array * self.RM_src_radm2)
+
+        #self.quarr_LoS  = self.frac_pol * np.exp( 2j * (np.radians(self.psi0_deg) + self.RM_screen_radm2*self.lambda_sqr_array)) * ((1 - np.exp(-1.*para_S)) / para_S) * np.exp(-2.0 * self.sigma_RM_FG_2 ** 2.0 * self.lambda_sqr_array**2.0)
+        self.quarr_LoS  = self.frac_pol * np.exp( 2j * np.radians(self.psi0_deg)) * ((1 - np.exp(-1.*para_S)) / para_S) * np.exp(-2.0 * self.sigma_RM_FG_2 ** 2.0 * self.lambda_sqr_array**2.0)
+
+        #self.RM_src_radm2 = 0
+        self.frac_pol_2_comp=0
+        self.psi0_2_deg=0
+        self.RM_screen_2_radm2=0
+        self.RM_screen_radm2 = 0
+
+    def _create_a_mixed_slab_unf_fg_LOS(self):
+        """
+        Turbulent Slab with a uniform foreground screen convolved with a beam
+        Inputs:
+            -fractional polarization
+            -polarization angle
+            -RM_screen - RM at the center of the beam
+            -sigma_RM_2 = the change in RM across the beam (sigma_b Delta RM/ D)
+        """
+    
+
+        para_S = (2. * self.lambda_sqr_array**2 * self.sigma_RM_2**2 - 2j * self.lambda_sqr_array * self.RM_src_radm2)
+        self.quarr_LoS = self.frac_pol * np.exp( 2j * (np.radians(self.psi0_deg) + self.RM_screen_radm2 * self.lambda_sqr_array)) * ((1 - np.exp(-1.*para_S)) / para_S) 
+        self.frac_pol_2_comp=0
+        self.psi0_2_deg = 0
+        self.sigma_RM_FG_2=0
+        self.RM_screen_2_radm2=0
+
+
+    def _create_two_component_LOS(self):
+
+        self.quarr_LoS = (self.frac_pol * np.exp(2j * (np.radians(self.psi0_deg) + self.RM_screen_radm2* self.lambda_sqr_array))) + (self.frac_pol_2_comp * np.exp(2j * (np.radians(self.psi0_2_deg) + self.RM_screen_2_radm2* self.lambda_sqr_array)))
+        self.sigma_RM_FG_2 = 0
 
     def get_quarr(self):
+     
         return self.quarr_LoS
+    
+    def get_model_parameters(self):
+        return self.frac_pol, self.psi0_deg, self.psi0_2_deg, self.RM_screen_radm2, self.RM_screen_2_radm2, self.RM_src_radm2, self.sigma_RM_2, self.sigma_RM_FG_2, self.frac_pol_2_comp, self.SNR, self.model_n
 
 
         
